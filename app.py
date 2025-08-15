@@ -6,12 +6,26 @@ import numpy as np
 from difflib import get_close_matches
 
 # -------------------
-# Load data
+# Load data with error handling
 # -------------------
-pt = pickle.load(open("pt.pkl", "rb"))                    # pivot table index = Book-Title
-books = pickle.load(open("books.pkl", "rb"))              # full books dataframe
-similarity_scores = pickle.load(open("similarity_scores.pkl", "rb"))
-popular_df = pickle.load(open("popular.pkl", "rb"))       # top 50 popular books (num_ratings, avg_rating, etc)
+try:
+    # Load data files from their respective directories
+    pt = pickle.load(open("data/pt.pkl", "rb"))                    # pivot table index = Book-Title
+    books = pickle.load(open("artifacts/books.pkl", "rb"))        # full books dataframe
+    similarity_scores = pickle.load(open("artifacts/similarity_scores.pkl", "rb"))
+    popular_df = pickle.load(open("artifacts/popular.pkl", "rb"))  # top 50 popular books (num_ratings, avg_rating, etc)
+    st.success("✅ All data files loaded successfully!")
+except FileNotFoundError as e:
+    st.error(f"❌ Data file not found: {e}")
+    st.error("Please make sure all required files are in the correct directories:")
+    st.error("- data/pt.pkl")
+    st.error("- artifacts/books.pkl")
+    st.error("- artifacts/similarity_scores.pkl")
+    st.error("- artifacts/popular.pkl")
+    st.stop()
+except Exception as e:
+    st.error(f"❌ Error loading data files: {e}")
+    st.stop()
 
 # -------------------
 # Utility functions
@@ -38,39 +52,21 @@ def recommend(book_name, n=5):
     recs = []
     for i, score in sim_scores:
         title = pt.index[i]
-        # fetch one representative row from books
-        row = books[books["Book-Title"] == title].drop_duplicates("Book-Title").iloc[0]
-        recs.append(
-            {
-                "title": row["Book-Title"],
-                "author": row.get("Book-Author", "Unknown"),
-                "image": row.get("Image-URL-M", None),
-                "score": float(score),
-            }
-        )
+        try:
+            # fetch one representative row from books
+            row = books[books["Book-Title"] == title].drop_duplicates("Book-Title").iloc[0]
+            recs.append(
+                {
+                    "title": row["Book-Title"],
+                    "author": row.get("Book-Author", "Unknown"),
+                    "image": row.get("Image-URL-M", None),
+                    "score": float(score),
+                }
+            )
+        except (IndexError, KeyError) as e:
+            # Skip this book if there's an error
+            continue
     return recs
-
-
-def render_book_card(book_row, show_button=True, key_prefix="top"):
-    """Render a single book card (image, title, author, votes, rating)."""
-    # book_row is a Series from popular_df
-    title = book_row["Book-Title"]
-    author = book_row.get("Book-Author", "")
-    image = book_row.get("Image-URL-M", None)
-    votes = int(book_row.get("num_ratings", 0))
-    rating = float(book_row.get("avg_rating", 0.0))
-
-    st.image(image, width=120) if image else st.write("(no image)")
-    st.markdown(f"**{title}**")
-    st.caption(f"by {author}")
-    st.write(f"Votes - {votes}")
-    st.write(f"Rating - {rating:.2f}")
-
-    if show_button:
-        if st.button("Recommend", key=f"{key_prefix}_rec_{title}"):
-            # set selected book and rerun to show recommendations in top area
-            st.session_state.selected_book = title
-            st.rerun()
 
 
 # -------------------
@@ -78,34 +74,73 @@ def render_book_card(book_row, show_button=True, key_prefix="top"):
 # -------------------
 st.set_page_config(page_title="Book Recommender", layout="wide")
 
-# --- Replace your existing topbar markdown with this ---
+# --- Improved topbar styling with better alignment ---
 st.markdown("""
 <style>
 .topbar {
     background: linear-gradient(90deg, #0fa66b, #0fa66b);
-    padding: 8px 20px;
+    padding: 12px 30px;
     color: white;
     font-family: 'Arial', sans-serif;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 .brand {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 700;
-}
-.search-box {
     display: flex;
-    gap: 5px;
+    align-items: center;
+    gap: 8px;
 }
-.stTextInput>div>div>input {
-    border-radius: 4px;
+.search-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    max-width: 500px;
+    margin: 0 20px;
+}
+.stTextInput > div > div > input {
+    border-radius: 6px;
+    border: none;
+    padding: 8px 12px;
+    font-size: 14px;
+    height: 40px;
+}
+.stButton > button {
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.stButton > button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+.clear-btn {
+    background: rgba(255,255,255,0.2) !important;
+    color: white !important;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+}
+.clear-btn:hover {
+    background: rgba(255,255,255,0.3) !important;
 }
 </style>
+""", unsafe_allow_html=True)
+
+# Render the actual topbar
+st.markdown("""
 <div class="topbar">
     <div class="brand">📚 My Book Recommender</div>
-    <div class="search-box">
-        <!-- Streamlit will render the search input here -->
+    <div class="search-container">
+        <!-- Search input will be rendered here -->
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -133,11 +168,13 @@ with top_container:
         if st.button("Recommend", key="search_btn"):
             if user_input and user_input.strip():
                 st.session_state.selected_book = user_input.strip()
+                st.rerun()
             else:
                 st.warning("Please type a book title or click a Top 50 book.")
     def clear_search():
         st.session_state.search_input = ""
         st.session_state.selected_book = None
+        st.rerun()
 
     # Inside your layout:
     with c3:
@@ -172,43 +209,93 @@ st.write("---")
 st.markdown("## 📈 Top 50 Books")
 grid_container = st.container()
 
-# Style for fixed-height cards
+# Style for improved book cards with better alignment and responsive design
 card_style = """
     <style>
         .book-card {
-            border: 1px solid #eee;
-            border-radius: 10px;
-            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 12px;
             text-align: center;
             background: #fff;
-            margin-bottom: 15px;
-            height: 320px; /* Fixed height for alignment */
+            margin-bottom: 20px;
+            height: 340px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-        }
-        .book-card img {
-            width: 120px;
-            height: 160px;
-            object-fit: cover;
-            border-radius: 5px;
-            margin: 0 auto;
-        }
-        .book-title {
-            font-weight: bold;
-            margin: 8px 0 4px 0;
-            font-size: 14px;
-            height: 36px; /* Fix title height */
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            position: relative;
             overflow: hidden;
         }
+        .book-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+        .book-card img {
+            width: 130px;
+            height: 180px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin: 0 auto 8px auto;
+            border: 2px solid #f0f0f0;
+        }
+        .book-title {
+            font-weight: 600;
+            margin: 6px 0 4px 0;
+            font-size: 13px;
+            line-height: 1.3;
+            height: 42px;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            color: #333;
+        }
         .book-author {
-            color: gray;
-            font-size: 12px;
-            margin: 0;
+            color: #666;
+            font-size: 11px;
+            margin: 0 0 6px 0;
+            font-style: italic;
         }
         .rating {
             margin: 4px 0;
-            font-size: 13px;
+            font-size: 12px;
+            color: #0fa66b;
+            font-weight: 500;
+        }
+        .book-card .stButton {
+            margin-top: 8px;
+        }
+        .book-card .stButton > button {
+            background: linear-gradient(90deg, #0fa66b, #0fa66b);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+        .book-card .stButton > button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        @media (max-width: 768px) {
+            .book-card {
+                height: 320px;
+                padding: 8px;
+            }
+            .book-card img {
+                width: 110px;
+                height: 150px;
+            }
+            .book-title {
+                font-size: 12px;
+                height: 36px;
+            }
         }
     </style>
 """
@@ -221,8 +308,8 @@ for idx, row in popular_df.reset_index(drop=True).iterrows():
         st.markdown(
             f"""
             <div class="book-card">
-                <div>
-                    <img src="{row['Image-URL-M']}">
+                <div class="card-content">
+                    <img src="{row['Image-URL-M']}" alt="{row['Book-Title']}" onerror="this.src='https://via.placeholder.com/130x180?text=No+Image'">
                     <div class="book-title">{row['Book-Title']}</div>
                     <div class="book-author">by {row['Book-Author']}</div>
                     <div class="rating">⭐ {round(row['avg_rating'],2)} | {row['num_ratings']} votes</div>
@@ -231,7 +318,7 @@ for idx, row in popular_df.reset_index(drop=True).iterrows():
             """,
             unsafe_allow_html=True,
         )
-        if st.button("Show Similar", key=f"top_rec_{idx}"):
+        if st.button("Show Similar", key=f"top_rec_{idx}", help=f"Show similar books to {row['Book-Title']}"):
             st.session_state.selected_book = row['Book-Title']
             st.rerun()
 
