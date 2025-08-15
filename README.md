@@ -27,7 +27,7 @@ This project is a Book Recommender System built with Python. It uses collaborati
    ```
 2. Run the application:
    ```powershell
-   python app.py
+   streamlit run app.py
    ```
    Or open `book_recommender_system.ipynb` in Jupyter Notebook for interactive exploration.
 
