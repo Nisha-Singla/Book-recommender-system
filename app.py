@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import pickle
 import numpy as np
@@ -10,8 +8,8 @@ from difflib import get_close_matches
 # -------------------
 try:
     # Load data files from their respective directories
-    pt = pickle.load(open("data/pt.pkl", "rb"))                    # pivot table index = Book-Title
-    books = pickle.load(open("artifacts/books.pkl", "rb"))        # full books dataframe
+    pt = pickle.load(open("data/pt.pkl", "rb"))  # pivot table index = Book-Title
+    books = pickle.load(open("artifacts/books.pkl", "rb"))  # full books dataframe
     similarity_scores = pickle.load(open("artifacts/similarity_scores.pkl", "rb"))
     popular_df = pickle.load(open("artifacts/popular.pkl", "rb"))  # top 50 popular books (num_ratings, avg_rating, etc)
     st.success("✅ All data files loaded successfully!")
@@ -140,11 +138,9 @@ st.markdown("""
 <div class="topbar">
     <div class="brand">📚 My Book Recommender</div>
     <div class="search-container">
-        <!-- Search input will be rendered here -->
-    </div>
+        </div>
 </div>
 """, unsafe_allow_html=True)
-
 
 
 # -------------------
@@ -159,29 +155,38 @@ if "selected_book" not in st.session_state:
 top_container = st.container()
 with top_container:
     st.markdown("## Find recommendations")
+    
+    # Use columns to place all elements in a single row
     c1, c2, c3 = st.columns([6, 1, 1])
+    
+    # Place text input in the first, wider column
     with c1:
-        # prefill input with selected book if present
         default_val = st.session_state.selected_book or ""
         user_input = st.text_input("Enter a book title or pick one below:", value=default_val, key="search_input")
+        
+    # Place 'Recommend' button in the second column
     with c2:
-        if st.button("Recommend", key="search_btn"):
+        # Add a placeholder for vertical alignment with the text input
+        # Using a Markdown with a height is more reliable for vertical alignment
+        st.markdown("<div style='height: 30px;'></div>", unsafe_allow_html=True)
+        if st.button("Recommend", key="search_btn", use_container_width=True):
             if user_input and user_input.strip():
                 st.session_state.selected_book = user_input.strip()
                 st.rerun()
             else:
                 st.warning("Please type a book title or click a Top 50 book.")
-    def clear_search():
-        st.session_state.search_input = ""
-        st.session_state.selected_book = None
-        st.rerun()
-
-    # Inside your layout:
+    
+    # Place 'Clear' button in the third column
     with c3:
-        st.button("Clear", key="clear_btn", on_click=clear_search)
+        # Add the same placeholder for vertical alignment
+        st.markdown("<div style='height: 30px;'></div>", unsafe_allow_html=True)
+        def clear_search():
+            st.session_state.search_input = ""
+            st.session_state.selected_book = None
+            st.rerun()
+        st.button("Clear", key="clear_btn", on_click=clear_search, use_container_width=True)
 
- 
-    # show recommendations if a book is selected
+    # The rest of the code for showing recommendations remains unchanged
     if st.session_state.selected_book:
         selected = st.session_state.selected_book
         recs = recommend(selected, n=5)
@@ -200,7 +205,6 @@ with top_container:
         st.info("Search a book or click 'Show Similar' on any Top 50 book below to see similar reads here.")
 
 st.write("---")
-
 
 
 # -------------------
